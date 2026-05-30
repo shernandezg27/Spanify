@@ -1,0 +1,5 @@
+# Dependencias SOLO de desarrollo/test. No se instalan en producción
+# (el Dockerfile instala únicamente requirements.txt).
+# Uso:  pip install -r requirements-dev.txt
+-r requirements.txt
+pytest

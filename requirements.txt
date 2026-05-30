@@ -1,0 +1,6 @@
+flask
+google-genai
+beautifulsoup4
+lxml
+tqdm
+pymupdf
