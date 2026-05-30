@@ -132,34 +132,35 @@ def _glyph_runs(text: str, primary, fallback):
     return runs
 
 
-# Topes para encajar texto que se alarga al traducir (el español ocupa más que
-# el inglés). Primero se condensa horizontalmente hasta MIN_HSCALE; si aún no
-# cabe, se reduce además el tamaño de fuente hasta MIN_SIZE_FACTOR. En
-# expansiones extremas (poco frecuentes) se acepta un mínimo desborde antes que
-# dejar el texto ilegible.
-MIN_HSCALE = 0.60
-MIN_SIZE_FACTOR = 0.75
+# El texto traducido casi siempre ocupa más que el original (el español se
+# alarga respecto al inglés). En vez de encoger unas líneas sí y otras no —lo
+# que deja alturas desiguales—, reducimos el tamaño de TODO el texto por un
+# mismo factor global: la altura queda uniforme en todo el documento y, al
+# partir de un tamaño menor, casi nunca hace falta condensar a lo ancho. El
+# ajuste fino que quede se hace solo condensando (sin volver a tocar el tamaño).
+GLOBAL_SIZE_FACTOR = 0.85  # -15 % de tamaño, igual para todo el documento
+MIN_HSCALE = 0.50          # suelo de condensado horizontal (rara vez se alcanza)
 
 
 def _fit_scale(text_width: float, avail_width, size: float) -> tuple[float, float]:
     """
-    Devuelve (escala_horizontal, tamaño_a_dibujar) para que un texto de ancho
-    `text_width` (medido a `size`) quepa en `avail_width`.
+    Devuelve (escala_horizontal, tamaño_a_dibujar) para reinsertar un texto.
 
-    - Si cabe o no hay restricción de ancho: (1.0, size) — no se toca nada.
-    - Si no cabe: condensa horizontalmente hasta MIN_HSCALE y, si hace falta,
-      reduce el tamaño hasta MIN_SIZE_FACTOR para cubrir el resto.
+    - El tamaño se reduce SIEMPRE por GLOBAL_SIZE_FACTOR (uniforme en todo el
+      documento), para que la altura sea igual entre líneas.
+    - El ajuste al hueco disponible se hace solo condensando horizontalmente
+      (hasta MIN_HSCALE). En expansiones extremas se acepta un mínimo desborde
+      antes que romper la uniformidad de tamaño.
+
+    `text_width` se mide al tamaño original; al dibujar al tamaño reducido, el
+    ancho se reduce en la misma proporción.
     """
-    if not avail_width or avail_width <= 0 or text_width <= 0:
-        return 1.0, size
-    ratio = avail_width / text_width
-    if ratio >= 1.0:
-        return 1.0, size
-    if ratio >= MIN_HSCALE:
-        return ratio, size
-    # Ni siquiera cabe condensado al máximo: baja también el tamaño de fuente.
-    size_factor = max(ratio / MIN_HSCALE, MIN_SIZE_FACTOR)
-    return MIN_HSCALE, size * size_factor
+    draw_size = size * GLOBAL_SIZE_FACTOR
+    scaled_width = text_width * GLOBAL_SIZE_FACTOR
+    if not avail_width or avail_width <= 0 or scaled_width <= 0 or scaled_width <= avail_width:
+        return 1.0, draw_size
+    hscale = max(avail_width / scaled_width, MIN_HSCALE)
+    return hscale, draw_size
 
 
 def _place_span(page, entry) -> bool:
@@ -167,10 +168,11 @@ def _place_span(page, entry) -> bool:
     Reinserta un span traducido anclado a su línea base (origin) con una fuente
     sustituta embebida elegida por estilo (serif/sans + negrita/cursiva).
 
-    Si el texto traducido no cabe en el hueco disponible (avail_width), se
-    condensa horizontalmente —y si hace falta se reduce el tamaño— para que no
-    se salga ni pise el fragmento contiguo. Si cabe, se respeta el tamaño
-    original (preservarlo evita el efecto de "tamaños arbitrarios").
+    El tamaño se reduce por un factor global uniforme (ver _fit_scale), de modo
+    que la altura del texto es la misma en todo el documento. Si tras esa
+    reducción el fragmento aún no cabe en su hueco (avail_width), se condensa
+    horizontalmente lo justo para no salirse ni pisar lo contiguo, sin volver a
+    tocar el tamaño (así no aparecen alturas desiguales entre líneas).
     """
     text, bbox, origin, font_name, size, color, flags = entry[:7]
     avail_width = entry[7] if len(entry) >= 8 else None

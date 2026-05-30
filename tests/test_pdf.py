@@ -88,34 +88,38 @@ class TestGlyphRuns:
         assert [(f is prim, t) for f, t in runs] == [(True, "ab"), (False, "x"), (True, "c")]
 
 
-# ── Encaje de texto que se alarga (condensado / reducción) ───────────────────
+# ── Encaje de texto: reducción global uniforme + condensado a lo ancho ───────
 
 class TestFitScale:
-    def test_cabe_no_toca_nada(self):
-        assert _fit_scale(80.0, 100.0, 12.0) == (1.0, 12.0)
+    G = pdf.GLOBAL_SIZE_FACTOR
 
-    def test_sin_restriccion_no_toca_nada(self):
-        assert _fit_scale(200.0, None, 12.0) == (1.0, 12.0)
-        assert _fit_scale(200.0, 0.0, 12.0) == (1.0, 12.0)
+    def test_reduce_el_tamano_siempre_de_forma_global(self):
+        # Aunque quepa de sobra, el tamaño baja por el factor global (uniforme).
+        hscale, size = _fit_scale(50.0, 1000.0, 12.0)
+        assert hscale == 1.0
+        assert size == pytest.approx(12.0 * self.G)
 
-    def test_condensa_leve_sin_bajar_tamano(self):
-        # 100 en 80 -> escala 0.8, tamaño intacto.
-        hscale, size = _fit_scale(100.0, 80.0, 12.0)
-        assert hscale == pytest.approx(0.8)
-        assert size == 12.0
+    def test_sin_restriccion_solo_reduce_tamano(self):
+        assert _fit_scale(200.0, None, 12.0) == (1.0, pytest.approx(12.0 * self.G))
+        assert _fit_scale(200.0, 0.0, 12.0) == (1.0, pytest.approx(12.0 * self.G))
 
-    def test_no_condensa_por_debajo_del_suelo_sin_reducir_tamano(self):
-        # ratio 0.5 < 0.6: se condensa al suelo y se reduce el tamaño para cubrir
-        # el resto. Ancho final = width * (size/orig) * hscale == avail.
-        hscale, size = _fit_scale(100.0, 50.0, 12.0)
-        assert hscale == pytest.approx(0.60)
-        assert 100.0 * (size / 12.0) * hscale == pytest.approx(50.0)
+    def test_cabe_tras_la_reduccion_no_condensa(self):
+        # 100 reducido -> 85; si el hueco (90) ya lo admite, no se condensa.
+        hscale, size = _fit_scale(100.0, 90.0, 12.0)
+        assert hscale == 1.0
+        assert size == pytest.approx(12.0 * self.G)
 
-    def test_expansion_extrema_respeta_suelos(self):
-        # ratio 0.3: hscale al suelo 0.6 y tamaño al suelo 0.75 (acepta desborde).
-        hscale, size = _fit_scale(100.0, 30.0, 12.0)
-        assert hscale == pytest.approx(0.60)
-        assert size == pytest.approx(12.0 * 0.75)
+    def test_condensa_solo_lo_que_falta_tras_reducir(self):
+        # 100 reducido -> 85; hueco 70 -> condensa 70/85, mismo tamaño global.
+        hscale, size = _fit_scale(100.0, 70.0, 12.0)
+        assert size == pytest.approx(12.0 * self.G)
+        assert 100.0 * self.G * hscale == pytest.approx(70.0)
+
+    def test_no_condensa_por_debajo_del_suelo(self):
+        # Hueco diminuto: hscale al suelo y se acepta desborde, tamaño uniforme.
+        hscale, size = _fit_scale(100.0, 10.0, 12.0)
+        assert hscale == pytest.approx(pdf.MIN_HSCALE)
+        assert size == pytest.approx(12.0 * self.G)
 
 
 # ── Realineado robusto por número ────────────────────────────────────────────
@@ -406,13 +410,16 @@ class TestPlaceSpanFit:
         doc.close()
         return (max(xs1) - min(xs0)) if xs0 else 0.0
 
-    def test_sin_restriccion_usa_ancho_natural(self, tmp_path):
-        full = substitute_font(0).text_length(self.TXT, fontsize=self.SIZE)
-        assert self._placed_width(None, tmp_path) == pytest.approx(full, abs=3)
+    def test_sin_restriccion_usa_tamano_reducido_global(self, tmp_path):
+        # Sin restricción no se condensa, pero el tamaño SÍ baja por el factor
+        # global: el ancho renderizado es el del texto al tamaño reducido.
+        full_reducido = substitute_font(0).text_length(
+            self.TXT, fontsize=self.SIZE * pdf.GLOBAL_SIZE_FACTOR)
+        assert self._placed_width(None, tmp_path) == pytest.approx(full_reducido, abs=3)
 
     def test_condensa_para_caber_en_el_hueco(self, tmp_path):
         full = substitute_font(0).text_length(self.TXT, fontsize=self.SIZE)
-        avail = full * 0.7  # obliga a condensar (ratio 0.7, dentro del rango)
+        avail = full * 0.6  # < ancho ya reducido (full*0.85): obliga a condensar
         w = self._placed_width(avail, tmp_path)
         assert w <= avail + 3      # no se sale del hueco asignado
         assert w < full - 5        # y de verdad se ha condensado

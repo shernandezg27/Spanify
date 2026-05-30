@@ -103,13 +103,23 @@ Noto, licencia OFL en `OFL.txt`) viajan con la app: no hay dependencias extra.
 ### Ajuste de texto que se alarga
 
 El español ocupa de media bastante más que el inglés, así que un fragmento
-traducido puede no caber donde estaba el original y pisar el de al lado. Para
-cada fragmento se calcula el **hueco real disponible** (hasta el inicio del
-siguiente fragmento de la línea, o el borde del bloque si es el último) y, si el
-texto no cabe, se **condensa horizontalmente** lo justo (hasta un 60 %) y, si
-aún se pasa, se **reduce algo el tamaño** (hasta un 75 %). Si cabe, no se toca
-nada: se respeta el tamaño original. Así el texto no desborda ni se solapa,
-manteniendo una sola línea por fragmento y sin tocar imágenes ni posiciones.
+traducido puede no caber donde estaba el original y pisar el de al lado. El
+ajuste tiene dos partes:
+
+1. **Reducción de tamaño global y uniforme.** Como el texto traducido casi
+   siempre crece, se reduce el tamaño de **todo** el documento por un mismo
+   factor (`GLOBAL_SIZE_FACTOR`, por defecto un 15 %). Así la altura de la letra
+   es **uniforme entre líneas** (no se encoge una línea sí y otra no) y, al
+   partir de un tamaño menor, casi nunca hace falta el paso siguiente.
+2. **Condensado horizontal solo donde haga falta.** Para cada fragmento se
+   calcula el **hueco real disponible** (hasta el inicio del siguiente fragmento
+   de la línea, o el borde del bloque si es el último). Si tras la reducción aún
+   no cabe, se **condensa horizontalmente** lo justo (hasta un 50 %), sin volver
+   a tocar el tamaño. En expansiones extremas se acepta un mínimo desborde antes
+   que romper la uniformidad de tamaño.
+
+Así el texto no desborda ni se solapa, con una sola línea por fragmento, altura
+uniforme y sin tocar imágenes ni posiciones.
 
 Además, las **imágenes se tratan como obstáculos**: cuando el original rodea una
 imagen acortando líneas (algo que no queda registrado en el texto), el hueco
