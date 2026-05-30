@@ -19,9 +19,9 @@
     --text: #ecebe7;
     --text-dim: #9a9a93;
     --text-muted: #6b6c66;
-    --accent: #b8c66b;       /* verde-oliva claro */
-    --accent-soft: #d8e29a;
-    --accent-deep: #8a9648;
+    --accent: #e8954a;       /* naranja cálido */
+    --accent-soft: #f3b878;
+    --accent-deep: #c06d2c;
     --danger: #e07a6a;
     --success: #9fc28a;
     --radius: 14px;
@@ -39,8 +39,8 @@
     color: var(--text);
     background: var(--bg);
     background-image:
-      radial-gradient(1100px 700px at 85% -10%, rgba(184, 198, 107, .07), transparent 60%),
-      radial-gradient(900px 600px at -10% 110%, rgba(184, 198, 107, .05), transparent 60%),
+      radial-gradient(1100px 700px at 85% -10%, rgba(232, 149, 74, .07), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(232, 149, 74, .05), transparent 60%),
       linear-gradient(180deg, #0c0d0e 0%, #0e0f10 100%);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
@@ -108,7 +108,7 @@
     width: 6px; height: 6px;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 3px rgba(184,198,107,.15);
+    box-shadow: 0 0 0 3px rgba(232,149,74,.15);
   }
 
   /* ─── API key ───────────────────────────── */
@@ -358,7 +358,7 @@
   <main class="page">
     <header>
       <h1>Spanify<span class="dot">.</span></h1>
-      <p class="subtitle">Traductor de documentos al español de España — EPUB y PDF</p>
+      <p class="subtitle">Traductor de documentos al español — EPUB y PDF</p>
     </header>
 
     <!-- API key -->
@@ -418,7 +418,7 @@
     <div id="status-msg" class="status hidden"></div>
 
     <footer>
-      Hecho con cariño para lectores · español de España
+      Hecho con cariño para lectores
     </footer>
   </main>
 
