@@ -108,15 +108,22 @@ ajuste tiene dos partes:
 
 1. **Reducción de tamaño global y uniforme.** Como el texto traducido casi
    siempre crece, se reduce el tamaño de **todo** el documento por un mismo
-   factor (`GLOBAL_SIZE_FACTOR`, por defecto un 15 %). Así la altura de la letra
+   factor (`GLOBAL_SIZE_FACTOR`, por defecto un 20 %). Así la altura de la letra
    es **uniforme entre líneas** (no se encoge una línea sí y otra no) y, al
    partir de un tamaño menor, casi nunca hace falta el paso siguiente.
 2. **Condensado horizontal solo donde haga falta.** Para cada fragmento se
-   calcula el **hueco real disponible** (hasta el inicio del siguiente fragmento
-   de la línea, o el borde del bloque si es el último). Si tras la reducción aún
-   no cabe, se **condensa horizontalmente** lo justo (hasta un 50 %), sin volver
-   a tocar el tamaño. En expansiones extremas se acepta un mínimo desborde antes
-   que romper la uniformidad de tamaño.
+   calcula el **hueco real disponible**: la distancia hasta el obstáculo más
+   cercano a su derecha, sea otro texto de su **misma banda vertical** (en
+   cualquier parte de la página, no solo dentro de la misma línea de PyMuPDF),
+   una imagen, o el borde de la página. Si tras la reducción aún no cabe, se
+   **condensa horizontalmente** lo justo (hasta un 50 %), sin volver a tocar el
+   tamaño. En expansiones extremas se acepta un mínimo desborde antes que romper
+   la uniformidad de tamaño.
+
+   Mirar en **toda la banda** (y no solo dentro de la línea) importa porque el
+   original a menudo coloca palabras contiguas en líneas/bloques separados a la
+   misma altura (p. ej. "Templar" y "Commandery", o el número y la descripción
+   de una tabla); antes el texto traducido las pisaba al crecer.
 
 Así el texto no desborda ni se solapa, con una sola línea por fragmento, altura
 uniforme y sin tocar imágenes ni posiciones.

@@ -221,6 +221,26 @@ class TestExtractSpans:
         assert s["origin"][0] + s["avail_width"] <= 222
         assert s["avail_width"] < 360  # sin el corte llegaría casi a la página
 
+    def test_avail_width_corta_en_vecino_de_la_misma_banda(self, tmp_path):
+        # Dos textos a la MISMA altura pero separados: PyMuPDF puede ponerlos en
+        # líneas/bloques distintos. El de la izquierda no debe poder crecer sobre
+        # el de la derecha (caso "Templar"/"Commandery" y número/descripción).
+        doc = fitz.open()
+        page = doc.new_page(width=600, height=200)
+        page.insert_text(fitz.Point(50, 100), "izq", fontsize=11)
+        page.insert_text(fitz.Point(300, 100), "der", fontsize=11)
+        p = tmp_path / "band.pdf"
+        doc.save(str(p))
+        doc.close()
+
+        doc = fitz.open(str(p))
+        spans = _extract_spans(doc[0])
+        doc.close()
+        izq = next(s for s in spans if "izq" in s["text"])
+        # su hueco llega como mucho hasta donde empieza "der" (~300), no a la página
+        assert izq["origin"][0] + izq["avail_width"] <= 302
+        assert izq["avail_width"] < 280  # sin el corte llegaría a ~550
+
     def test_ignora_spans_vacios(self, tmp_path):
         p = tmp_path / "spaces.pdf"
         doc = fitz.open()

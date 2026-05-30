@@ -65,53 +65,71 @@ def _image_obstacles(page) -> list:
     return rects
 
 
+def _same_band(a: tuple, b: tuple) -> bool:
+    """
+    True si dos bboxes están en la misma banda horizontal de texto (la misma
+    línea visual), aunque PyMuPDF los haya repartido en 'line'/'block' distintos.
+    Se mide por solape vertical: a menudo el original coloca palabras contiguas
+    como trozos separados (p. ej. "Templar" y "Commandery", o el número y la
+    descripción de una tabla).
+    """
+    overlap = min(a[3], b[3]) - max(a[1], b[1])
+    if overlap <= 0:
+        return False
+    min_h = min(a[3] - a[1], b[3] - b[1])
+    return min_h > 0 and overlap >= 0.5 * min_h
+
+
 def _extract_spans(page) -> list[dict]:
-    spans = []
     page_right = page.rect.x1
     img_rects = _image_obstacles(page)
-    data = page.get_text("dict")
-    for block in data.get("blocks", []):
+
+    # Paso 1: todos los spans no vacíos en orden de documento (bloque->línea->span).
+    # Ese orden es el que se manda a traducir y con el que se recolocan, así que
+    # debe conservarse.
+    raw = []
+    for block in page.get_text("dict").get("blocks", []):
         if block.get("type", 1) != 0:
             continue
-        block_right = block.get("bbox", (0, 0, page_right, 0))[2]
         for line in block.get("lines", []):
-            line_spans = [s for s in line.get("spans", []) if s.get("text", "").strip()]
-            # Límite derecho de cada span = el inicio (x0) del siguiente span de la
-            # línea; si es el último, el borde del bloque (acotado a la página). Es
-            # el hueco real del que dispone el texto traducido sin pisar lo de al
-            # lado, y permite condensarlo solo lo justo cuando el español se alarga.
-            order = sorted(range(len(line_spans)), key=lambda i: line_spans[i]["bbox"][0])
-            right_of = {}
-            for pos, i in enumerate(order):
-                if pos + 1 < len(order):
-                    right_of[i] = line_spans[order[pos + 1]]["bbox"][0]
-                else:
-                    right_of[i] = min(block_right, page_right)
-            for i, span in enumerate(line_spans):
-                bbox = tuple(span["bbox"])
-                # origin = punto de la línea base donde empieza el span; es lo que
-                # usamos para reinsertar el texto. Si falta, lo derivamos del bbox.
-                origin = tuple(span.get("origin", (bbox[0], bbox[3])))
-                # El ancho disponible nunca es menor que el del propio span original
-                # (ese hueco ya lo ocupaba el inglés): así no condensamos de más
-                # cuando el siguiente span está pegado.
-                right = max(right_of[i], bbox[2])
-                # Si hay una imagen a la derecha que solapa verticalmente con el
-                # span, el texto no puede pasar de su borde izquierdo.
-                for ir in img_rects:
-                    if ir.x0 > bbox[0] and ir.y0 < bbox[3] and ir.y1 > bbox[1]:
-                        right = min(right, ir.x0)
-                avail_width = max(right - origin[0], 1.0)
-                spans.append({
-                    "text": span.get("text", ""),
-                    "bbox": bbox,
-                    "origin": origin,
-                    "font": span.get("font", ""),
-                    "size": float(span.get("size", 11.0)),
-                    "color": int(span.get("color", 0)),
-                    "flags": int(span.get("flags", 0)),
-                    "avail_width": float(avail_width),
-                })
+            for span in line.get("spans", []):
+                if span.get("text", "").strip():
+                    raw.append(span)
+
+    # Paso 2: el hueco de cada span = distancia al obstáculo más cercano a su
+    # derecha (otro span de su MISMA banda vertical en CUALQUIER parte de la
+    # página, una imagen, o el borde de la página). Mirar solo dentro de la
+    # 'line' de PyMuPDF dejaba crecer el texto traducido sobre palabras que en el
+    # original están en líneas/bloques separados pero a la misma altura.
+    spans = []
+    for span in raw:
+        bbox = tuple(span["bbox"])
+        origin = tuple(span.get("origin", (bbox[0], bbox[3])))
+        right = page_right
+        for other in raw:
+            if other is span:
+                continue
+            ob = other["bbox"]
+            if ob[0] > bbox[0] + 1 and _same_band(bbox, ob):
+                right = min(right, ob[0])
+        # Nunca por debajo del ancho original del span (ese hueco ya lo ocupaba el
+        # inglés): evita condensar de más frente a un vecino de texto pegado.
+        right = max(right, bbox[2])
+        # Una imagen a la derecha sí puede recortar por debajo (no escribir encima).
+        for ir in img_rects:
+            if ir.x0 > bbox[0] and ir.y0 < bbox[3] and ir.y1 > bbox[1]:
+                right = min(right, ir.x0)
+        avail_width = max(right - origin[0], 1.0)
+        spans.append({
+            "text": span.get("text", ""),
+            "bbox": bbox,
+            "origin": origin,
+            "font": span.get("font", ""),
+            "size": float(span.get("size", 11.0)),
+            "color": int(span.get("color", 0)),
+            "flags": int(span.get("flags", 0)),
+            "avail_width": float(avail_width),
+        })
     return spans
 
 
@@ -138,7 +156,7 @@ def _glyph_runs(text: str, primary, fallback):
 # mismo factor global: la altura queda uniforme en todo el documento y, al
 # partir de un tamaño menor, casi nunca hace falta condensar a lo ancho. El
 # ajuste fino que quede se hace solo condensando (sin volver a tocar el tamaño).
-GLOBAL_SIZE_FACTOR = 0.85  # -15 % de tamaño, igual para todo el documento
+GLOBAL_SIZE_FACTOR = 0.80  # -20 % de tamaño, igual para todo el documento
 MIN_HSCALE = 0.50          # suelo de condensado horizontal (rara vez se alcanza)
 
 
