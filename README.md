@@ -111,6 +111,14 @@ aún se pasa, se **reduce algo el tamaño** (hasta un 75 %). Si cabe, no se toca
 nada: se respeta el tamaño original. Así el texto no desborda ni se solapa,
 manteniendo una sola línea por fragmento y sin tocar imágenes ni posiciones.
 
+Además, las **imágenes se tratan como obstáculos**: cuando el original rodea una
+imagen acortando líneas (algo que no queda registrado en el texto), el hueco
+disponible se recorta hasta el borde izquierdo de esa imagen, de modo que el
+texto traducido se condensa en lugar de meterse encima. Los fondos a página
+completa se ignoran (el texto va sobre ellos a propósito). *Limitación actual:
+solo se detectan imágenes rasterizadas (`get_image_info`); las figuras
+vectoriales todavía no cuentan como obstáculo.*
+
 ## Mejoras futuras
 
 Pendientes de implementar, conscientemente fuera del alcance actual:

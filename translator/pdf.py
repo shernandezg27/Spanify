@@ -38,9 +38,37 @@ def normalize_color(color: int) -> tuple[float, float, float]:
     return (r / 255.0, g / 255.0, b / 255.0)
 
 
+def _image_obstacles(page) -> list:
+    """
+    Recuadros de imágenes que pueden estorbar al texto, para usarlos como límite
+    derecho: el texto traducido puede crecer hasta el borde izquierdo de una
+    imagen, pero no meterse en ella. Se excluyen los fondos a página completa
+    (no son obstáculos: el texto va encima a propósito).
+
+    Esto resuelve el caso en que el original evita una imagen ACORTANDO líneas
+    (no hay nada en el texto que marque esa forma); sin esto, el español al
+    expandirse crecería hacia la derecha y pisaría la imagen.
+    """
+    try:
+        infos = page.get_image_info()
+    except Exception:
+        return []
+    page_area = page.rect.width * page.rect.height
+    rects = []
+    for info in infos:
+        r = fitz.Rect(info["bbox"])
+        if r.is_empty or r.is_infinite:
+            continue
+        if page_area and (r.width * r.height) > 0.85 * page_area:
+            continue  # fondo a página completa
+        rects.append(r)
+    return rects
+
+
 def _extract_spans(page) -> list[dict]:
     spans = []
     page_right = page.rect.x1
+    img_rects = _image_obstacles(page)
     data = page.get_text("dict")
     for block in data.get("blocks", []):
         if block.get("type", 1) != 0:
@@ -68,7 +96,12 @@ def _extract_spans(page) -> list[dict]:
                 # (ese hueco ya lo ocupaba el inglés): así no condensamos de más
                 # cuando el siguiente span está pegado.
                 right = max(right_of[i], bbox[2])
-                avail_width = max(right - origin[0], 0.0)
+                # Si hay una imagen a la derecha que solapa verticalmente con el
+                # span, el texto no puede pasar de su borde izquierdo.
+                for ir in img_rects:
+                    if ir.x0 > bbox[0] and ir.y0 < bbox[3] and ir.y1 > bbox[1]:
+                        right = min(right, ir.x0)
+                avail_width = max(right - origin[0], 1.0)
                 spans.append({
                     "text": span.get("text", ""),
                     "bbox": bbox,

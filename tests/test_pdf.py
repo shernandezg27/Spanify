@@ -195,6 +195,28 @@ class TestExtractSpans:
             assert s["avail_width"] > 0
             assert s["avail_width"] <= page_right + 1
 
+    def test_avail_width_se_corta_en_imagen_a_la_derecha(self, tmp_path):
+        # Una imagen a la derecha (no a página completa) limita el hueco: el texto
+        # no puede crecer dentro de ella aunque el original sea corto. Reproduce
+        # el caso del texto que rodea una imagen acortando líneas.
+        doc = fitz.open()
+        page = doc.new_page(width=400, height=200)
+        pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 4, 4))
+        pix.clear_with(128)
+        page.insert_image(fitz.Rect(220, 40, 380, 160), pixmap=pix)
+        page.insert_text(fitz.Point(40, 100), "corto", fontsize=12)
+        p = tmp_path / "wrap.pdf"
+        doc.save(str(p))
+        doc.close()
+
+        doc = fitz.open(str(p))
+        spans = _extract_spans(doc[0])
+        doc.close()
+        s = next(x for x in spans if "corto" in x["text"])
+        # el hueco llega como mucho al borde de la imagen (~220), no a la página (400)
+        assert s["origin"][0] + s["avail_width"] <= 222
+        assert s["avail_width"] < 360  # sin el corte llegaría casi a la página
+
     def test_ignora_spans_vacios(self, tmp_path):
         p = tmp_path / "spaces.pdf"
         doc = fitz.open()
