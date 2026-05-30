@@ -35,7 +35,8 @@ def main():
         page = doc[pno]
         spans = _extract_spans(page)
         entries = [
-            (SPANISH, s["bbox"], s["origin"], s["font"], s["size"], s["color"], s["flags"])
+            (SPANISH, s["bbox"], s["origin"], s["font"], s["size"], s["color"],
+             s["flags"], s["avail_width"])
             for s in spans
         ]
         _apply_page_spans(page, entries)

@@ -40,27 +40,44 @@ def normalize_color(color: int) -> tuple[float, float, float]:
 
 def _extract_spans(page) -> list[dict]:
     spans = []
+    page_right = page.rect.x1
     data = page.get_text("dict")
     for block in data.get("blocks", []):
         if block.get("type", 1) != 0:
             continue
+        block_right = block.get("bbox", (0, 0, page_right, 0))[2]
         for line in block.get("lines", []):
-            for span in line.get("spans", []):
-                text = span.get("text", "")
-                if not text.strip():
-                    continue
+            line_spans = [s for s in line.get("spans", []) if s.get("text", "").strip()]
+            # Límite derecho de cada span = el inicio (x0) del siguiente span de la
+            # línea; si es el último, el borde del bloque (acotado a la página). Es
+            # el hueco real del que dispone el texto traducido sin pisar lo de al
+            # lado, y permite condensarlo solo lo justo cuando el español se alarga.
+            order = sorted(range(len(line_spans)), key=lambda i: line_spans[i]["bbox"][0])
+            right_of = {}
+            for pos, i in enumerate(order):
+                if pos + 1 < len(order):
+                    right_of[i] = line_spans[order[pos + 1]]["bbox"][0]
+                else:
+                    right_of[i] = min(block_right, page_right)
+            for i, span in enumerate(line_spans):
                 bbox = tuple(span["bbox"])
                 # origin = punto de la línea base donde empieza el span; es lo que
                 # usamos para reinsertar el texto. Si falta, lo derivamos del bbox.
                 origin = tuple(span.get("origin", (bbox[0], bbox[3])))
+                # El ancho disponible nunca es menor que el del propio span original
+                # (ese hueco ya lo ocupaba el inglés): así no condensamos de más
+                # cuando el siguiente span está pegado.
+                right = max(right_of[i], bbox[2])
+                avail_width = max(right - origin[0], 0.0)
                 spans.append({
-                    "text": text,
+                    "text": span.get("text", ""),
                     "bbox": bbox,
                     "origin": origin,
                     "font": span.get("font", ""),
                     "size": float(span.get("size", 11.0)),
                     "color": int(span.get("color", 0)),
                     "flags": int(span.get("flags", 0)),
+                    "avail_width": float(avail_width),
                 })
     return spans
 
@@ -82,33 +99,78 @@ def _glyph_runs(text: str, primary, fallback):
     return runs
 
 
+# Topes para encajar texto que se alarga al traducir (el español ocupa más que
+# el inglés). Primero se condensa horizontalmente hasta MIN_HSCALE; si aún no
+# cabe, se reduce además el tamaño de fuente hasta MIN_SIZE_FACTOR. En
+# expansiones extremas (poco frecuentes) se acepta un mínimo desborde antes que
+# dejar el texto ilegible.
+MIN_HSCALE = 0.60
+MIN_SIZE_FACTOR = 0.75
+
+
+def _fit_scale(text_width: float, avail_width, size: float) -> tuple[float, float]:
+    """
+    Devuelve (escala_horizontal, tamaño_a_dibujar) para que un texto de ancho
+    `text_width` (medido a `size`) quepa en `avail_width`.
+
+    - Si cabe o no hay restricción de ancho: (1.0, size) — no se toca nada.
+    - Si no cabe: condensa horizontalmente hasta MIN_HSCALE y, si hace falta,
+      reduce el tamaño hasta MIN_SIZE_FACTOR para cubrir el resto.
+    """
+    if not avail_width or avail_width <= 0 or text_width <= 0:
+        return 1.0, size
+    ratio = avail_width / text_width
+    if ratio >= 1.0:
+        return 1.0, size
+    if ratio >= MIN_HSCALE:
+        return ratio, size
+    # Ni siquiera cabe condensado al máximo: baja también el tamaño de fuente.
+    size_factor = max(ratio / MIN_HSCALE, MIN_SIZE_FACTOR)
+    return MIN_HSCALE, size * size_factor
+
+
 def _place_span(page, entry) -> bool:
     """
     Reinserta un span traducido anclado a su línea base (origin) con una fuente
-    sustituta embebida elegida por estilo (serif/sans + negrita/cursiva). Se
-    respeta el cuerpo original (sin reescalar): preservar los tamaños evita el
-    efecto de "tamaños arbitrarios".
+    sustituta embebida elegida por estilo (serif/sans + negrita/cursiva).
+
+    Si el texto traducido no cabe en el hueco disponible (avail_width), se
+    condensa horizontalmente —y si hace falta se reduce el tamaño— para que no
+    se salga ni pise el fragmento contiguo. Si cabe, se respeta el tamaño
+    original (preservarlo evita el efecto de "tamaños arbitrarios").
     """
-    text, bbox, origin, font_name, size, color, flags = entry
+    text, bbox, origin, font_name, size, color, flags = entry[:7]
+    avail_width = entry[7] if len(entry) >= 8 else None
     if not text:
         return False
     primary = substitute_font(flags)
     fallback = broad_font()
     color_tuple = normalize_color(color)
 
+    runs = _glyph_runs(text, primary, fallback)
+    total_width = sum(rf.text_length(rt, fontsize=size) for rf, rt in runs)
+    hscale, draw_size = _fit_scale(total_width, avail_width, size)
+
     writer = fitz.TextWriter(page.rect, color=color_tuple)
     x, y = origin[0], origin[1]
     placed = False
-    for run_font, run_text in _glyph_runs(text, primary, fallback):
+    for run_font, run_text in runs:
         try:
-            writer.append(fitz.Point(x, y), run_text, font=run_font, fontsize=size)
-            x += run_font.text_length(run_text, fontsize=size)
+            writer.append(fitz.Point(x, y), run_text, font=run_font, fontsize=draw_size)
+            x += run_font.text_length(run_text, fontsize=draw_size)
             placed = True
         except Exception:
             continue
-    if placed:
+    if not placed:
+        return False
+    if hscale != 1.0:
+        # Compresión solo horizontal (la 'y' no se toca) pivotando en el origin,
+        # así la línea base se mantiene y el texto encoge hacia la derecha.
+        pivot = fitz.Point(origin[0], origin[1])
+        writer.write_text(page, morph=(pivot, fitz.Matrix(hscale, 1)))
+    else:
         writer.write_text(page)
-    return placed
+    return True
 
 
 def _apply_page_spans(page, translated_spans: list) -> None:
@@ -153,21 +215,29 @@ def _save_checkpoint(progress_path: Path, state: dict) -> None:
     progress_path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
 
 
-# Orden canónico de una entrada de span: (text, bbox, origin, font, size, color, flags).
+# Orden canónico de una entrada de span:
+#   (text, bbox, origin, font, size, color, flags, avail_width)
+# avail_width puede ser None (sin restricción de ancho).
 
 def _entry_to_saved(entry) -> list:
-    text, bbox, origin, font, size, color, flags = entry
-    return [text, list(bbox), list(origin), font, size, color, flags]
+    text, bbox, origin, font, size, color, flags = entry[:7]
+    avail = entry[7] if len(entry) >= 8 else None
+    return [text, list(bbox), list(origin), font, size, color, flags, avail]
 
 
 def _entry_from_saved(e) -> tuple:
-    if len(e) >= 7:
-        text, bbox, origin, font, size, color, flags = e[0], e[1], e[2], e[3], e[4], e[5], e[6]
+    avail = None
+    if len(e) >= 8:
+        text, bbox, origin, font, size, color, flags, avail = e[:8]
+    elif len(e) == 7:
+        # Checkpoint sin avail_width: sin restricción de ancho.
+        text, bbox, origin, font, size, color, flags = e
     else:
         # Checkpoint antiguo sin origin: derivarlo del bbox (esquina inferior izda.).
         text, bbox, font, size, color, flags = e[0], e[1], e[2], e[3], e[4], e[5]
         origin = (bbox[0], bbox[3])
-    return (text, tuple(bbox), tuple(origin), font, float(size), int(color), int(flags))
+    return (text, tuple(bbox), tuple(origin), font, float(size), int(color), int(flags),
+            None if avail is None else float(avail))
 
 
 _NUMBERED_RE = re.compile(r"\[\[\s*(\d+)\s*\]\]\s*(.*)")
@@ -300,6 +370,7 @@ def translate_pdf(input_path_str: str, api_key: str | None = None, progress_cb=N
                         span["size"],
                         span["color"],
                         span["flags"],
+                        span["avail_width"],
                     ))
 
                 _apply_page_spans(page, translated_spans)

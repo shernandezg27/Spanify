@@ -100,6 +100,17 @@ deducido de sus `flags`), que se embebe con codificación correcta y se ve igual
 en cualquier visor. Las fuentes (`translator/fonts/*.ttf`, subsets latinos de
 Noto, licencia OFL en `OFL.txt`) viajan con la app: no hay dependencias extra.
 
+### Ajuste de texto que se alarga
+
+El español ocupa de media bastante más que el inglés, así que un fragmento
+traducido puede no caber donde estaba el original y pisar el de al lado. Para
+cada fragmento se calcula el **hueco real disponible** (hasta el inicio del
+siguiente fragmento de la línea, o el borde del bloque si es el último) y, si el
+texto no cabe, se **condensa horizontalmente** lo justo (hasta un 60 %) y, si
+aún se pasa, se **reduce algo el tamaño** (hasta un 75 %). Si cabe, no se toca
+nada: se respeta el tamaño original. Así el texto no desborda ni se solapa,
+manteniendo una sola línea por fragmento y sin tocar imágenes ni posiciones.
+
 ## Mejoras futuras
 
 Pendientes de implementar, conscientemente fuera del alcance actual:
@@ -107,5 +118,5 @@ Pendientes de implementar, conscientemente fuera del alcance actual:
 - **Detección de idioma fuente**: una llamada previa a Gemini con una muestra del documento para detectar el idioma original y mostrárselo al usuario antes de iniciar la traducción. El idioma destino seguiría siendo siempre español de España.
 - **Selector de modelo**: obtener la lista de modelos disponibles desde la API de Gemini y permitir elegir uno desde el frontend.
 - **Contador de uso de API**: cuando Google exponga un endpoint de uso, mostrar peticiones consumidas y disponibles.
-- **Corrección avanzada de desbordamiento en PDF**: el texto traducido se reinserta a su tamaño original anclado a la línea base, sin reescalar (preservar los tamaños evita el efecto de "tamaños arbitrarios"). Pendiente: como el español ocupa más que el inglés, un texto largo puede desbordar el ancho original; haría falta reflow de párrafo o reparto entre áreas contiguas.
+- **Reflujo de párrafo en PDF**: hoy, cuando el español se alarga, el texto se *condensa* para caber en su hueco (ver "Ajuste de texto que se alarga"). Eso evita solapes pero mantiene una sola línea por fragmento. Pendiente: para expansiones muy grandes, repartir el texto en varias líneas dentro del área del párrafo (reflow real), teniendo en cuenta los párrafos contiguos para no empujarlos verticalmente.
 - **Fidelidad tipográfica exacta**: hoy el texto serif/sans del original se reemplaza por Noto Serif/Sans (no por la fuente exacta original, que no se puede reutilizar de forma portable). Se podría mapear familias concretas a sustitutas más parecidas (p. ej. Garamond → EB Garamond) o ampliar el juego de fuentes embebidas (mono, etc.).

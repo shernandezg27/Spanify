@@ -8,9 +8,11 @@ from translator import pdf
 from translator.pdf import (
     normalize_color,
     _glyph_runs,
+    _fit_scale,
     _parse_numbered_response,
     _extract_spans,
     _apply_page_spans,
+    _place_span,
     _entry_to_saved,
     _entry_from_saved,
     _translate_page_spans,
@@ -86,6 +88,36 @@ class TestGlyphRuns:
         assert [(f is prim, t) for f, t in runs] == [(True, "ab"), (False, "x"), (True, "c")]
 
 
+# ── Encaje de texto que se alarga (condensado / reducción) ───────────────────
+
+class TestFitScale:
+    def test_cabe_no_toca_nada(self):
+        assert _fit_scale(80.0, 100.0, 12.0) == (1.0, 12.0)
+
+    def test_sin_restriccion_no_toca_nada(self):
+        assert _fit_scale(200.0, None, 12.0) == (1.0, 12.0)
+        assert _fit_scale(200.0, 0.0, 12.0) == (1.0, 12.0)
+
+    def test_condensa_leve_sin_bajar_tamano(self):
+        # 100 en 80 -> escala 0.8, tamaño intacto.
+        hscale, size = _fit_scale(100.0, 80.0, 12.0)
+        assert hscale == pytest.approx(0.8)
+        assert size == 12.0
+
+    def test_no_condensa_por_debajo_del_suelo_sin_reducir_tamano(self):
+        # ratio 0.5 < 0.6: se condensa al suelo y se reduce el tamaño para cubrir
+        # el resto. Ancho final = width * (size/orig) * hscale == avail.
+        hscale, size = _fit_scale(100.0, 50.0, 12.0)
+        assert hscale == pytest.approx(0.60)
+        assert 100.0 * (size / 12.0) * hscale == pytest.approx(50.0)
+
+    def test_expansion_extrema_respeta_suelos(self):
+        # ratio 0.3: hscale al suelo 0.6 y tamaño al suelo 0.75 (acepta desborde).
+        hscale, size = _fit_scale(100.0, 30.0, 12.0)
+        assert hscale == pytest.approx(0.60)
+        assert size == pytest.approx(12.0 * 0.75)
+
+
 # ── Realineado robusto por número ────────────────────────────────────────────
 
 class TestParseNumberedResponse:
@@ -119,15 +151,23 @@ class TestParseNumberedResponse:
 
 class TestEntrySerialization:
     def test_roundtrip(self):
-        entry = ("Hola", (10.0, 20.0, 50.0, 32.0), (10.0, 30.0), "Garamond", 11.0, 0, 0)
+        entry = ("Hola", (10.0, 20.0, 50.0, 32.0), (10.0, 30.0), "Garamond", 11.0, 0, 0, 40.0)
         restored = _entry_from_saved(_entry_to_saved(entry))
         assert restored == entry
+
+    def test_formato_sin_avail_width(self):
+        # Checkpoint con origin pero sin avail_width: queda None (sin restricción).
+        old = ["Hola", [10.0, 20.0, 50.0, 32.0], [10.0, 30.0], "Garamond", 11.0, 0, 0]
+        restored = _entry_from_saved(old)
+        assert restored[7] is None
+        assert restored[:7] == ("Hola", (10.0, 20.0, 50.0, 32.0), (10.0, 30.0), "Garamond", 11.0, 0, 0)
 
     def test_formato_antiguo_sin_origin_se_deriva_del_bbox(self):
         old = ["Hola", [10.0, 20.0, 50.0, 32.0], "Garamond", 11.0, 0, 0]
         restored = _entry_from_saved(old)
         assert restored[2] == (10.0, 32.0)  # origin derivado
         assert restored[0] == "Hola"
+        assert restored[7] is None
 
 
 # ── Extracción ────────────────────────────────────────────────────────────────
@@ -142,6 +182,18 @@ class TestExtractSpans:
         for s in spans:
             assert "origin" in s and len(s["origin"]) == 2
             assert len(s["bbox"]) == 4
+
+    def test_avail_width_presente_y_acotado(self, pdf_with_image):
+        doc = fitz.open(str(pdf_with_image))
+        page = doc[0]
+        page_right = page.rect.x1
+        spans = _extract_spans(page)
+        doc.close()
+        assert spans
+        for s in spans:
+            # hueco disponible positivo y nunca mayor que el ancho de la página
+            assert s["avail_width"] > 0
+            assert s["avail_width"] <= page_right + 1
 
     def test_ignora_spans_vacios(self, tmp_path):
         p = tmp_path / "spaces.pdf"
@@ -304,3 +356,41 @@ class TestApplyPageSpans:
         # NO debe pasar es la explosión del bug original (imágenes rasterizadas,
         # x50). Margen amplio para el coste de fuentes, pero lejos de los MB.
         assert out.stat().st_size < size_antes + 300_000
+
+
+# ── Condensado real sobre la página (no desbordar el hueco) ──────────────────
+
+class TestPlaceSpanFit:
+    TXT = "Acción de bonificación inmediata para todas las unidades"
+    SIZE = 12.0
+
+    def _placed_width(self, avail, tmp_path):
+        doc = fitz.open()
+        page = doc.new_page(width=700, height=200)
+        origin = (50.0, 100.0)
+        bbox = (50.0, 88.0, 300.0, 104.0)
+        entry = (self.TXT, bbox, origin, "X", self.SIZE, 0, 0, avail)
+        assert _place_span(page, entry)
+        out = tmp_path / "fit.pdf"
+        doc.save(str(out), garbage=4, deflate=True)
+        doc.close()
+        doc = fitz.open(str(out))
+        xs0, xs1 = [], []
+        for b in doc[0].get_text("dict")["blocks"]:
+            for ln in b.get("lines", []):
+                for s in ln.get("spans", []):
+                    xs0.append(s["bbox"][0])
+                    xs1.append(s["bbox"][2])
+        doc.close()
+        return (max(xs1) - min(xs0)) if xs0 else 0.0
+
+    def test_sin_restriccion_usa_ancho_natural(self, tmp_path):
+        full = substitute_font(0).text_length(self.TXT, fontsize=self.SIZE)
+        assert self._placed_width(None, tmp_path) == pytest.approx(full, abs=3)
+
+    def test_condensa_para_caber_en_el_hueco(self, tmp_path):
+        full = substitute_font(0).text_length(self.TXT, fontsize=self.SIZE)
+        avail = full * 0.7  # obliga a condensar (ratio 0.7, dentro del rango)
+        w = self._placed_width(avail, tmp_path)
+        assert w <= avail + 3      # no se sale del hueco asignado
+        assert w < full - 5        # y de verdad se ha condensado
