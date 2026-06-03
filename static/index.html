@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Spanify — traductor de documentos al español de España" />
+<title>Spanify · Traductor de documentos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f10;
+    --bg-2: #131416;
+    --panel: #17191c;
+    --panel-2: #1d2024;
+    --border: #2a2d33;
+    --border-strong: #3a3e46;
+    --text: #ecebe7;
+    --text-dim: #9a9a93;
+    --text-muted: #6b6c66;
+    --accent: #e8954a;       /* naranja cálido */
+    --accent-soft: #f3b878;
+    --accent-deep: #c06d2c;
+    --danger: #e07a6a;
+    --success: #9fc28a;
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 24px 60px -20px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.3);
+    --font-serif: "Fraunces", Georgia, serif;
+    --font-sans: "Manrope", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--text);
+    background: var(--bg);
+    background-image:
+      radial-gradient(1100px 700px at 85% -10%, rgba(232, 149, 74, .07), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(232, 149, 74, .05), transparent 60%),
+      linear-gradient(180deg, #0c0d0e 0%, #0e0f10 100%);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    line-height: 1.5;
+    font-size: 15px;
+    letter-spacing: .005em;
+  }
+
+  .page {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+  }
+
+  /* ─── Header ─────────────────────────────── */
+  header { text-align: center; }
+  h1 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: clamp(48px, 8vw, 72px);
+    letter-spacing: -.02em;
+    margin: 0;
+    line-height: 1;
+    font-variation-settings: "opsz" 120;
+  }
+  h1 .dot {
+    color: var(--accent);
+    font-style: italic;
+    font-weight: 500;
+  }
+  .subtitle {
+    margin-top: 14px;
+    color: var(--text-dim);
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: .01em;
+  }
+
+  /* ─── Cards / Sections ───────────────────── */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 22px;
+    transition: border-color .25s ease, background .25s ease;
+  }
+
+  .card-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-label::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232,149,74,.15);
+  }
+
+  /* ─── API key ───────────────────────────── */
+  .key-input-wrap {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+  input[type="password"], input[type="text"] {
+    flex: 1;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 14px 16px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color .2s ease, background .2s ease;
+    letter-spacing: .02em;
+  }
+  input[type="password"]:focus, input[type="text"]:focus {
+    border-color: var(--accent-deep);
+    background: #1a1d20;
+  }
+  input::placeholder { color: var(--text-muted); }
+
+  .key-saved {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .key-mask {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--text-dim);
+    font-size: 14px;
+    letter-spacing: .04em;
+  }
+  .key-mask .last4 { color: var(--text); }
+
+  /* ─── Buttons ───────────────────────────── */
+  button {
+    font-family: var(--font-sans);
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    transition: all .2s ease;
+    font-weight: 500;
+    letter-spacing: .01em;
+  }
+  button:disabled { cursor: not-allowed; opacity: .45; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #1a1d10;
+    padding: 16px 22px;
+    font-size: 15px;
+    font-weight: 600;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    letter-spacing: .01em;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-soft);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    padding: 13px 18px;
+    font-size: 14px;
+  }
+  .btn-secondary:hover { background: var(--panel-2); border-color: var(--accent-deep); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+  .btn-ghost:hover { color: var(--text); background: rgba(255,255,255,.04); }
+
+  /* ─── Drop zone ─────────────────────────── */
+  .drop {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius);
+    padding: 38px 22px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .25s ease;
+    background: var(--bg-2);
+    display: block;
+  }
+  .drop:hover, .drop.dragover {
+    border-color: var(--accent);
+    background: #181a17;
+  }
+  .drop.dragover { transform: scale(1.005); }
+  .drop-icon {
+    font-family: var(--font-serif);
+    font-size: 34px;
+    color: var(--accent);
+    font-style: italic;
+    line-height: 1;
+    margin-bottom: 10px;
+    font-weight: 400;
+  }
+  .drop-text {
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .drop-hint {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    letter-spacing: .03em;
+  }
+  #file-input { display: none; }
+
+  .file-selected {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .file-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .file-name {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .file-size { color: var(--text-muted); font-size: 12px; letter-spacing: .03em; }
+  .file-remove {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .file-remove:hover { color: var(--danger); border-color: var(--danger); }
+
+  /* ─── Progress ──────────────────────────── */
+  .progress-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .progress-bar {
+    height: 6px;
+    background: var(--bg-2);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+    border-radius: 999px;
+    transition: width .35s cubic-bezier(.4,0,.2,1);
+    position: relative;
+  }
+  .progress-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1.8s linear infinite;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+  }
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .progress-pct { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* ─── Status messages ───────────────────── */
+  .status {
+    padding: 14px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    line-height: 1.45;
+    border: 1px solid;
+  }
+  .status.error {
+    background: rgba(224, 122, 106, .08);
+    border-color: rgba(224, 122, 106, .35);
+    color: var(--danger);
+  }
+  .status.success {
+    background: rgba(159, 194, 138, .08);
+    border-color: rgba(159, 194, 138, .35);
+    color: var(--success);
+  }
+
+  /* ─── Footer ───────────────────────────── */
+  footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: .04em;
+    margin-top: 8px;
+  }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  .hidden { display: none !important; }
+
+  /* ─── Mobile ───────────────────────────── */
+  @media (max-width: 520px) {
+    .page { padding: 40px 18px 64px; gap: 28px; }
+    .card { padding: 18px; }
+    h1 { font-size: 56px; }
+    .key-input-wrap { flex-direction: column; }
+    .drop { padding: 30px 18px; }
+  }
+</style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>Spanify<span class="dot">.</span></h1>
+      <p class="subtitle">Traductor de documentos al español — EPUB y PDF</p>
+    </header>
+
+    <!-- API key -->
+    <section class="card" aria-labelledby="key-label">
+      <div class="card-label" id="key-label">Clave de API de Gemini</div>
+
+      <div id="key-input-view" class="key-input-wrap">
+        <input type="password" id="key-input" placeholder="Pega aquí tu clave de Gemini" autocomplete="off" spellcheck="false" />
+        <button type="button" class="btn-secondary" id="key-save">Guardar clave</button>
+      </div>
+
+      <div id="key-saved-view" class="key-saved hidden">
+        <div>
+          <div class="key-mask"><span>••••••••</span><span class="last4" id="key-last4">····</span></div>
+        </div>
+        <button type="button" class="btn-ghost" id="key-change">Cambiar</button>
+      </div>
+    </section>
+
+    <!-- Archivo -->
+    <section class="card" aria-labelledby="file-label">
+      <div class="card-label" id="file-label">Documento</div>
+
+      <label class="drop" id="dropzone" for="file-input">
+        <div class="drop-icon">↑</div>
+        <div class="drop-text">Arrastra tu archivo o haz clic para seleccionarlo</div>
+        <div class="drop-hint">Formatos admitidos · EPUB · PDF</div>
+      </label>
+      <input type="file" id="file-input" accept=".epub,.pdf,application/epub+zip,application/pdf" />
+
+      <div id="file-selected" class="file-selected hidden" style="margin-top:14px">
+        <div class="file-meta">
+          <span class="file-name" id="file-name"></span>
+          <span class="file-size" id="file-size"></span>
+        </div>
+        <button type="button" class="file-remove" id="file-remove" aria-label="Quitar archivo">×</button>
+      </div>
+    </section>
+
+    <!-- Traducir -->
+    <section>
+      <button type="button" class="btn-primary" id="translate-btn" disabled>Traducir</button>
+    </section>
+
+    <!-- Progreso -->
+    <section id="progress-section" class="card hidden" aria-live="polite">
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-info">
+          <span id="progress-msg">Iniciando…</span>
+          <span class="progress-pct" id="progress-pct">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mensajes -->
+    <div id="status-msg" class="status hidden"></div>
+
+    <footer>
+      Hecho con cariño para lectores
+    </footer>
+  </main>
+
+<script>
+(() => {
+  "use strict";
+
+  const KEY_STORAGE = "gemini_api_key";
+  const POLL_INTERVAL = 2000;
+  const VALID_EXT = ["epub", "pdf"];
+
+  // ─── Refs ───────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const keyInputView = $("key-input-view");
+  const keySavedView = $("key-saved-view");
+  const keyInput     = $("key-input");
+  const keySaveBtn   = $("key-save");
+  const keyChangeBtn = $("key-change");
+  const keyLast4     = $("key-last4");
+
+  const dropzone     = $("dropzone");
+  const fileInput    = $("file-input");
+  const fileSelected = $("file-selected");
+  const fileNameEl   = $("file-name");
+  const fileSizeEl   = $("file-size");
+  const fileRemove   = $("file-remove");
+
+  const translateBtn = $("translate-btn");
+
+  const progressSection = $("progress-section");
+  const progressFill    = $("progress-fill");
+  const progressMsg     = $("progress-msg");
+  const progressPct     = $("progress-pct");
+
+  const statusMsg = $("status-msg");
+
+  // ─── State ──────────────────────────────
+  let currentFile = null;
+  let pollTimer = null;
+  let inFlight = false;
+
+  // ─── Utils ──────────────────────────────
+  const formatSize = (bytes) => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+  };
+
+  const showStatus = (text, kind) => {
+    statusMsg.textContent = text;
+    statusMsg.className = "status " + (kind || "");
+    statusMsg.classList.remove("hidden");
+  };
+  const hideStatus = () => { statusMsg.classList.add("hidden"); };
+
+  const updateTranslateBtn = () => {
+    const hasKey = !!localStorage.getItem(KEY_STORAGE);
+    translateBtn.disabled = inFlight || !hasKey || !currentFile;
+  };
+
+  // ─── API key ────────────────────────────
+  const renderKey = () => {
+    const k = localStorage.getItem(KEY_STORAGE);
+    if (k && k.length > 0) {
+      keyLast4.textContent = k.slice(-4);
+      keyInputView.classList.add("hidden");
+      keySavedView.classList.remove("hidden");
+    } else {
+      keyInputView.classList.remove("hidden");
+      keySavedView.classList.add("hidden");
+    }
+    updateTranslateBtn();
+  };
+
+  keySaveBtn.addEventListener("click", () => {
+    const v = keyInput.value.trim();
+    if (!v) {
+      keyInput.focus();
+      keyInput.style.borderColor = "var(--danger)";
+      setTimeout(() => { keyInput.style.borderColor = ""; }, 1200);
+      return;
+    }
+    localStorage.setItem(KEY_STORAGE, v);
+    keyInput.value = "";
+    renderKey();
+  });
+
+  keyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") keySaveBtn.click();
+  });
+
+  keyChangeBtn.addEventListener("click", () => {
+    localStorage.removeItem(KEY_STORAGE);
+    renderKey();
+    keyInput.focus();
+  });
+
+  // ─── File handling ──────────────────────
+  const setFile = (file) => {
+    if (!file) return;
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (!VALID_EXT.includes(ext)) {
+      showStatus("Solo se admiten archivos .epub o .pdf.", "error");
+      return;
+    }
+    hideStatus();
+    currentFile = file;
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = formatSize(file.size);
+    fileSelected.classList.remove("hidden");
+    dropzone.classList.add("hidden");
+    updateTranslateBtn();
+  };
+
+  const clearFile = () => {
+    currentFile = null;
+    fileInput.value = "";
+    fileSelected.classList.add("hidden");
+    dropzone.classList.remove("hidden");
+    updateTranslateBtn();
+  };
+
+  fileInput.addEventListener("change", (e) => {
+    if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
+  });
+  fileRemove.addEventListener("click", clearFile);
+
+  ["dragenter", "dragover"].forEach((ev) => {
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach((ev) => {
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+    });
+  });
+  dropzone.addEventListener("drop", (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) setFile(f);
+  });
+
+  // ─── Translate flow ─────────────────────
+  const resetUI = () => {
+    inFlight = false;
+    progressSection.classList.add("hidden");
+    progressFill.style.width = "0%";
+    progressPct.textContent = "0%";
+    progressMsg.textContent = "Iniciando…";
+    translateBtn.textContent = "Traducir";
+    clearFile();
+  };
+
+  const startPolling = (jobId) => {
+    if (pollTimer) clearInterval(pollTimer);
+
+    const tick = async () => {
+      try {
+        const res = await fetch(`/estado/${jobId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const pct = Math.max(0, Math.min(100, Number(data.progreso) || 0));
+        progressFill.style.width = pct + "%";
+        progressPct.textContent = pct + "%";
+        if (data.mensaje) progressMsg.textContent = data.mensaje;
+
+        if (data.status === "completado") {
+          clearInterval(pollTimer); pollTimer = null;
+          progressFill.style.width = "100%";
+          progressPct.textContent = "100%";
+          downloadResult(jobId);
+          showStatus("¡Traducción completada! Descargando archivo…", "success");
+          setTimeout(() => {
+            hideStatus();
+            resetUI();
+          }, 2500);
+        } else if (data.status === "error") {
+          clearInterval(pollTimer); pollTimer = null;
+          progressSection.classList.add("hidden");
+          showStatus(data.error || data.mensaje || "Se ha producido un error durante la traducción.", "error");
+          inFlight = false;
+          translateBtn.textContent = "Traducir";
+          updateTranslateBtn();
+        }
+      } catch (err) {
+        // Error de red: se reintenta en el próximo tick.
+        console.warn("Polling falló, reintentando:", err);
+      }
+    };
+
+    pollTimer = setInterval(tick, POLL_INTERVAL);
+    tick();
+  };
+
+  const downloadResult = (jobId) => {
+    const a = document.createElement("a");
+    a.href = `/descargar/${jobId}`;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => a.remove(), 1000);
+  };
+
+  translateBtn.addEventListener("click", async () => {
+    const apiKey = localStorage.getItem(KEY_STORAGE);
+    if (!apiKey || !currentFile) return;
+
+    hideStatus();
+    inFlight = true;
+    translateBtn.disabled = true;
+    translateBtn.textContent = "Subiendo…";
+    progressSection.classList.remove("hidden");
+    progressFill.style.width = "0%";
+    progressPct.textContent = "0%";
+    progressMsg.textContent = "Enviando archivo al servidor…";
+
+    const fd = new FormData();
+    fd.append("file", currentFile);
+    fd.append("api_key", apiKey);
+
+    try {
+      const res = await fetch("/traducir", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      if (!data.job_id) throw new Error("Respuesta inválida del servidor.");
+
+      translateBtn.textContent = "Traduciendo…";
+      progressMsg.textContent = "Procesando documento…";
+      startPolling(data.job_id);
+    } catch (err) {
+      progressSection.classList.add("hidden");
+      showStatus(err.message || "No se ha podido iniciar la traducción.", "error");
+      inFlight = false;
+      translateBtn.textContent = "Traducir";
+      updateTranslateBtn();
+    }
+  });
+
+  // ─── Init ───────────────────────────────
+  renderKey();
+})();
+</script>
+</body>
+</html>

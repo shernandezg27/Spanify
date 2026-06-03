@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+data/
+*.progress
+.env
+.venv/
+
+# Entradas de prueba locales (PDFs/EPUBs reales, no necesarios para los tests)
+test-documents/
+
+# Renders de verificación visual (tests/verify_fixes.py)
+tests/verify_out/
+
+# Tooling local del entorno (no forma parte del proyecto)
+.agents/
+.claude/
