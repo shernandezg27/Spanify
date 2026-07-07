@@ -86,6 +86,28 @@ def strip_markdown_fences(text: str) -> str:
     return text.strip()
 
 
+_NUMBERED_TOKEN_RE = re.compile(r"\[\[\s*(\d+)\s*\]\]")
+
+
+def parse_numbered_response(resp: str, count: int) -> dict[int, str]:
+    """
+    Parsea una respuesta con el protocolo numerado ([[N]] traducción) y devuelve
+    {índice: traducción} emparejando por NÚMERO, no por posición: si el modelo
+    fusiona, divide o se salta fragmentos, el resto no se desplaza. Tolera
+    traducciones multilínea (el contenido de cada [[N]] llega hasta el
+    siguiente marcador). Los índices fuera de [0, count) y los repetidos se
+    ignoran.
+    """
+    result: dict[int, str] = {}
+    matches = list(_NUMBERED_TOKEN_RE.finditer(resp))
+    for pos, m in enumerate(matches):
+        idx = int(m.group(1))
+        end = matches[pos + 1].start() if pos + 1 < len(matches) else len(resp)
+        if 0 <= idx < count and idx not in result:
+            result[idx] = resp[m.end():end].strip()
+    return result
+
+
 def _parse_retry_delay(error: Exception) -> float | None:
     match = re.search(r"retry[^\d]*(\d+(?:\.\d+)?)s", str(error), re.IGNORECASE)
     return float(match.group(1)) + 2 if match else None

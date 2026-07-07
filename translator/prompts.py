@@ -2,8 +2,8 @@
 Prompts externalizados como constantes. Ninguna otra parte del código
 debe contener cadenas de prompt embebidas.
 
-- EPUB_TRANSLATE: prompt para HTML/XHTML de EPUB.
-- PDF_TRANSLATE:  prompt para fragmentos de texto plano separados por |||.
+- EPUB_TRANSLATE: prompt para fragmentos numerados de EPUB con marcadores <tN> de formato.
+- PDF_TRANSLATE:  prompt para fragmentos numerados de texto plano de PDF.
 - PREV_CONTEXT:   bloque de contexto previo, opcionalmente prepended al prompt.
 """
 
@@ -16,8 +16,23 @@ PREV_CONTEXT = (
 
 
 EPUB_TRANSLATE = (
-    "Eres un traductor literario experto. Traduce el siguiente fragmento HTML "
-    "del inglés al español de España (castellano).\n\n"
+    "Eres un traductor literario experto. Traduce del inglés al español de "
+    "España (castellano) cada fragmento numerado de un libro.\n"
+    "Cada fragmento viene en su propia línea con el formato:  [[N]] texto\n"
+    "Responde con EXACTAMENTE una línea por fragmento, conservando su número:  [[N]] traducción\n"
+    "Mantén el MISMO número N de cada fragmento original. No fusiones, dividas, "
+    "añadas ni elimines fragmentos.\n"
+    "No añadas explicaciones ni ningún texto fuera de las líneas [[N]].\n\n"
+
+    "SOBRE LOS MARCADORES DE FORMATO:\n"
+    "- Los fragmentos pueden contener marcadores <tN>…</tN> o <tN/> (por ejemplo "
+    "<t1>palabra</t1>). Delimitan formato (cursiva, enlaces, etc.).\n"
+    "- Conserva TODOS los marcadores en tu traducción, con su mismo número, "
+    "envolviendo la traducción de las mismas palabras que envolvían en el original.\n"
+    "- No traduzcas, elimines ni dupliques los marcadores, no añadas marcadores "
+    "nuevos y no cambies sus números.\n"
+    "- Los marcadores <tN/> son elementos sueltos (saltos de línea, imágenes): "
+    "mantenlos en la posición equivalente de la frase traducida.\n\n"
 
     "SOBRE EL IDIOMA:\n"
     "- Usa español de España (castellano). Nunca uses expresiones, léxico ni "
@@ -43,14 +58,8 @@ EPUB_TRANSLATE = (
     "- Conserva en su forma original los títulos de obras (libros, películas, etc.).\n"
     "- Conserva las palabras en otros idiomas que aparezcan en el original.\n\n"
 
-    "SOBRE EL HTML:\n"
-    "- Mantén TODOS los tags HTML y sus atributos exactamente igual, sin modificarlos.\n"
-    "- Traduce ÚNICAMENTE el texto visible entre los tags.\n"
-    "- No añadas explicaciones, comentarios ni formato markdown.\n"
-    "- Devuelve ÚNICAMENTE el HTML con el texto traducido, nada más.\n\n"
-
     "{context}"
-    "FRAGMENTO A TRADUCIR:\n{html}"
+    "FRAGMENTOS:\n{fragmentos}"
 )
 
 

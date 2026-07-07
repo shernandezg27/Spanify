@@ -4,7 +4,6 @@ en bloques con Gemini y reconstruye el PDF preservando posiciones y estilos.
 """
 
 import json
-import re
 import time
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from .common import (
     setup_gemini,
     send_chunk,
     split_into_chunks,
+    parse_numbered_response,
     mock_translate_enabled,
     APIKeyError,
     CuotaAgotadaError,
@@ -293,9 +293,6 @@ def _entry_from_saved(e) -> tuple:
             None if avail is None else float(avail))
 
 
-_NUMBERED_RE = re.compile(r"\[\[\s*(\d+)\s*\]\]\s*(.*)")
-
-
 def _parse_numbered_response(resp: str, chunk: list[str]) -> list[str]:
     """
     Parsea la respuesta numerada del modelo ([[N]] traducción) emparejando cada
@@ -304,14 +301,7 @@ def _parse_numbered_response(resp: str, chunk: list[str]) -> list[str]:
     los huecos se rellenan con el texto original (mantiene la alineación con los
     spans del PDF, que es lo que rompía la maquetación al desajustarse).
     """
-    by_idx: dict[int, str] = {}
-    for line in resp.splitlines():
-        m = _NUMBERED_RE.match(line.strip())
-        if not m:
-            continue
-        idx = int(m.group(1))
-        if 0 <= idx < len(chunk):
-            by_idx[idx] = m.group(2).strip()
+    by_idx = parse_numbered_response(resp, len(chunk))
     return [by_idx.get(i) or chunk[i] for i in range(len(chunk))]
 
 

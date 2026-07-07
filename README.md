@@ -89,6 +89,35 @@ requirements.txt
 
 Directorio de datos (no va al repo): `/data/uploads/` y `/data/checkpoints/`.
 
+### Cómo traduce el EPUB: solo viaja el texto
+
+A Gemini **nunca se le envía HTML del libro**, solo su texto. Cada bloque
+(`<p>`, `<h1>`, `<li>`…) se serializa a texto plano en el que los tags inline
+se sustituyen por marcadores ligeros sin atributos (`<t1>…</t1>`, o `<t2/>`
+para elementos opacos como `<br/>`, `<img/>` o `<code>`), y los fragmentos se
+envían numerados con el protocolo `[[N]]` (el mismo que usa el traductor de
+PDF). Al volver, cada traducción se empareja con su bloque **por número, no por
+posición**, se valida que los marcadores cuadran y se reconstruye el bloque
+restaurando los tags originales con todos sus atributos.
+
+Ventajas frente a mandar el HTML crudo:
+
+- El modelo **no puede romper el XHTML** ni perder bloques: si omite un número
+  o descoloca un marcador, ese bloque se reintenta en una pasada de rescate y,
+  si sigue fallando, conserva su texto original (y se informa en el progreso).
+  Nada se pierde en silencio.
+- **Menos tokens**: no se pagan tags, atributos (`<span class="calibre3">`…)
+  ni whitespace, ni a la ida ni a la vuelta.
+
+El **índice de navegación** (`toc.ncx`, EPUB 2) también se traduce sin poder
+romperse: solo se reescriben las etiquetas visibles (`navLabel > text`), nunca
+los `src`/`id`/`playOrder` de los que depende la navegación. Cada etiqueta
+reutiliza el título ya traducido de su capítulo destino (índice y cuerpo quedan
+idénticos, sin coste de API) y solo las etiquetas sin correspondencia pasan por
+el modelo. El `nav.xhtml` de EPUB 3 se traduce por el flujo normal de contenido.
+El título del libro (`dc:title` del OPF y `docTitle` del NCX) se conserva en el
+idioma original.
+
 ### Fuentes en el PDF traducido
 
 Al reinsertar el texto traducido **no se reutiliza la fuente original** del PDF:
